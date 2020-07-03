@@ -1,0 +1,46 @@
+{
+  "name": "runhfsc",
+  "version": "1.0.0",
+  "description": "",
+  "bin": {
+    "runhfsc": "lib/main.js"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "build": "npm run test",
+    "compile": "tsc",
+    "_precompile": "npm run eslint",
+    "pretest": "npm run compile",
+    "test": "nyc mocha --require ts-node/register --recursive 'test/unit/**/*.spec.ts' --reporter azure-mocha-reporter",
+    "eslint": "eslint src --ext .ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hyperledger/fabric-chaincode-node"
+  },
+  "keywords": [
+    "fabric-ledger",
+    "Hyperledger Fabric",
+    "Fabric Ledger"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^13.7.0",
+    "eslint": "^6.8.0",
+    "typescript": "^3.7.5"
+  },
+  "dependencies": {
+    "@types/yargs": "^15.0.3",
+    "@typescript-eslint/eslint-plugin": "^2.19.0",
+    "@typescript-eslint/parser": "^2.19.0",
+    "cliffy": "^2.3.0",
+    "fabric-network": "^2.1.1-snapshot.364",
+    "jsome": "^2.5.0",
+    "json-colorizer": "^2.2.1",
+    "pretty-js": "^0.2.1",
+    "prettyjson": "^1.2.1",
+    "yargs": "^15.1.0"
+  }
+}
