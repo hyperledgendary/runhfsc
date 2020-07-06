@@ -6,6 +6,8 @@ application.
 
 Usable with Hyperledger Fabric version2 or IBM Blockchain Platform
 
+[![asciicast](https://asciinema.org/a/345618.svg)](https://asciinema.org/a/345618)
+
 
 ## Installation
 
@@ -86,5 +88,47 @@ Submitted args ["CAR1"]
 }
 ```
 
-To `submit` a transaction, eg to create a car
+To `submit` a transaction, eg to update an owner
 ```bash 
+[default] appid@mychannel:fabcar - $ evaluate queryCar '["CAR9"]'
+Submitted queryCar  CAR9
+> {"color":"brown","docType":"car","make":"Holden","model":"Barina","owner":"fred"}
+[default] appid@mychannel:fabcar # $ submit changeCarOwner '["CAR9","BILL"]'
+Submitted changeCarOwner  CAR9,BILL
+> 
+[default] appid@mychannel:fabcar # $ evaluate queryCar '["CAR9"]'
+Submitted queryCar  CAR9
+> {"color":"brown","docType":"car","make":"Holden","model":"Barina","owner":"BILL"}
+```
+
+### metadata
+There is a shortcut to get hold of metadata of the contract. This lets you see for example what transactions can be run.
+
+```bash
+[default] appid@mychannel:fabcar # $ metadata
+> {
+  '$schema': 'https://fabric-shim.github.io/release-1.4/contract-schema.json',
+  contracts: {
+    FabCar: {
+      name: 'FabCar',
+      contractInstance: { name: 'FabCar', default: true },
+      transactions: [
+        { name: 'initLedger', tags: [ 'submitTx' ] },
+        { name: 'queryCar', tags: [ 'submitTx' ] },
+        { name: 'createCar', tags: [ 'submitTx' ] },
+        { name: 'queryAllCars', tags: [ 'submitTx' ] },
+        { name: 'changeCarOwner', tags: [ 'submitTx' ] }
+      ],
+      info: { title: '', version: '' }
+    },
+    'org.hyperledger.fabric': {
+      name: 'org.hyperledger.fabric',
+      contractInstance: { name: 'org.hyperledger.fabric' },
+      transactions: [ { name: 'GetMetadata' } ],
+      info: { title: '', version: '' }
+    }
+  },
+  info: { version: '1.0.0', title: 'fabcar' },
+  components: { schemas: {} }
+}
+```

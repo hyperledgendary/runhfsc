@@ -184,6 +184,7 @@ const main = async (walletPath: string, connectionFile: string, user: string) =>
             {
                 label: 'args',
                 description: 'JSON format string ',
+                optional: true,
             },
             {
                 label: 'private',
@@ -195,9 +196,8 @@ const main = async (walletPath: string, connectionFile: string, user: string) =>
             if (!params.args) {
                 params.args = '[]';
             }
-            log({ msg: 'Submitted args', val: params.args });
-
-            const args = params.args;
+            const args: string[] = JSON.parse(params.args);
+            log({ msg: `Submitted ${params.txname} `, val: args.join(',') });
 
             const result = await fabrics[current].submit(params.txname, args);
             if (options.json) {
@@ -217,6 +217,7 @@ const main = async (walletPath: string, connectionFile: string, user: string) =>
             {
                 label: 'args',
                 description: 'JSON format string ',
+                optional: true,
             },
             {
                 label: 'private',
@@ -229,11 +230,8 @@ const main = async (walletPath: string, connectionFile: string, user: string) =>
             if (!params.args) {
                 params.args = '[]';
             }
-            if (!params.args) {
-                params.args = '[]';
-            }
-            log({ msg: 'Submitted args', val: params.args });
-            const args = JSON.parse(params.args);
+            const args: string[] = JSON.parse(params.args);
+            log({ msg: `Submitted ${params.txname} `, val: args.join(',') });
 
             const result = await fabrics[current].evaluate(params.txname, args);
             if (options.json) {

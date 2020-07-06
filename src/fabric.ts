@@ -176,10 +176,12 @@ export default class Fabric {
             await this.establish();
         }
         if (this.contract) {
+            // log({msg:fnName,val:args});
+            console.log(args);
             const issueResponse = await this.contract.submitTransaction(fnName, ...args);
             return issueResponse.toString();
         }
-        return 'failed';
+        return '';
     }
 
     public destroy(): void {
