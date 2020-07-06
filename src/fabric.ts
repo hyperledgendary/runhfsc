@@ -1,13 +1,20 @@
 /*
-SPDX-License-Identifier: Apache-2.0
-*/
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-// Bring key classes into scope, most importantly Fabric SDK network class
 import * as fs from 'fs';
-
+import * as path from 'path';
 import { Wallets, Gateway, Wallet, Network, Contract } from 'fabric-network';
+// import { pathToFileURL } from 'url';
+import * as os from 'os';
 
+import { getGatewayProfile } from './util';
+
+/** Helper class for handling connections to Fabric or IBP */
 export default class Fabric {
+    /**
+     * Return general information
+     */
     getInfo(): string {
         let str = `Identity: ${this.userName} \n`;
         str += `Channel: ${this.channel} \n`;
@@ -17,54 +24,91 @@ export default class Fabric {
     }
 
     private cliName: string;
-    //
+
     constructor(cliName: string, wallet: Wallet, connectionProfile: any) {
         this.cliName = cliName;
         this.mywallet = wallet;
         this.connectionProfile = connectionProfile;
     }
 
-
     private mywallet: Wallet;
     private gateway: Gateway | undefined;
     private network: Network | undefined;
     private connectionProfile: any;
-    private userName: string = '';
-    private channel: string = '';
-    private contractId: string = '';
-
+    private userName = '';
+    private channel = '';
+    private contractId = '';
+    private connected = false;
     private contract: Contract | undefined;
 
+    static async newFabric(cliName: string, walletPath: string, connectionPath: string): Promise<Fabric> {
+        let wp = path.resolve(walletPath);
+        if (!fs.existsSync(wp)) {
+            // so doesn't exist so try to check a default location
+            const homeWalletPath = path.join(os.homedir(), '.ibpwallets', walletPath);
+            if (!fs.existsSync(homeWalletPath)) {
+                // give up
+                throw new Error(`Can not locate wallet ${wp} or ${homeWalletPath}`);
+            } else {
+                wp = homeWalletPath;
+            }
+        }
 
-
-    static async newFabric(cliName: string, walletPath: string, connectionPath: string) {
-        const wallet = await Wallets.newFileSystemWallet(walletPath);
+        const wallet = await Wallets.newFileSystemWallet(wp);
         // Load connection profile; will be used to locate a gateway
-        const connectionProfile = JSON.parse(fs.readFileSync(connectionPath, 'utf8'));
-        return new Fabric(cliName, wallet, connectionProfile);
+
+        let cp = path.resolve(connectionPath);
+        if (!fs.existsSync(cp)) {
+            // so doesn't exist so try to check a default location
+            const gatewayPath = path.join(os.homedir(), '.ibpgateways', connectionPath);
+            if (!fs.existsSync(gatewayPath)) {
+                // give up
+                throw new Error(`Can not locate wallet ${wp}`);
+            } else {
+                cp = gatewayPath;
+            }
+        }
+
+        if (fs.statSync(cp).isDirectory()) {
+            cp = path.join(cp, 'gateway.json');
+        }
+
+        return new Fabric(cliName, wallet, getGatewayProfile(cp));
     }
 
-
-    getCliName() {
+    public getCliName(): string {
         return this.cliName;
     }
 
-    setUser(userName: string) {
+    public setUser(userName: string): void {
         this.userName = userName;
     }
 
-    setChannel(channel: string) {
+    public getUser(): string {
+        return this.userName;
+    }
+
+    public setChannel(channel: string): void {
         this.channel = channel;
     }
 
-    setContract(contract: string) {
+    public getChannel(): string {
+        return this.channel;
+    }
+
+    public setContractId(contract: string): void {
         this.contractId = contract;
     }
 
-    // A wallet stores a collection of identities for use
+    public getContractId(): string {
+        return this.contractId;
+    }
 
-    async establish() {
-        // Main try/catch block
+    /**
+     * Establish the connection based on the current values
+     */
+    public async establish(): Promise<string> {
+        // disconnect the gateway if it exists
         if (this.gateway) {
             this.gateway.disconnect();
         }
@@ -72,63 +116,75 @@ export default class Fabric {
         this.gateway = new Gateway();
 
         if (this.userName === '') {
-            return "UserName required";
+            return 'UserName required';
         }
 
         if (this.channel === '') {
-            return "Channel required";
+            return 'Channel required';
         }
 
         if (this.contractId === '') {
-            return "Contract required";
+            return 'Contract required';
         }
 
         // Set connection options; identity and wallet
         const connectionOptions = {
             identity: this.userName,
             wallet: this.mywallet,
-            discovery: { enabled: true, asLocalhost: true }
+            discovery: { enabled: true, asLocalhost: false },
         };
 
         // Connect to gateway using application specified parameters
-        console.log('Connect to Fabric gateway.');
         await this.gateway.connect(this.connectionProfile, connectionOptions);
+        this.connected = true;
+        return 'Connected';
+    }
+
+    public getConnected(): boolean {
+        return this.connected;
+    }
+
+    /**
+     * Issue an 'evaluate'
+     *
+     * @param fnName
+     * @param args
+     */
+    public async evaluate(fnName: string, args: string[]): Promise<string> {
+        if (!this.connected) {
+            await this.establish();
+        }
+
+        if (!this.gateway || !this.channel) {
+            throw new Error('Not properly connected');
+        }
         this.network = await this.gateway.getNetwork(this.channel);
         this.contract = await this.network.getContract(this.contractId);
 
+        const issueResponse = await this.contract.evaluateTransaction(fnName, ...args);
+        return issueResponse.toString();
     }
 
-    async evaluate(fnName: string, args: string[]): Promise<string> {
-        if (!this.contract) {
-            await this.establish();
-        }
-        if (this.contract) {
-            const issueResponse = await this.contract.evaluateTransaction(fnName, ...args);
-            return issueResponse.toString();
-        }
-        return "failed";
-    }
-
-    async submit(fnName: string, args: string[]): Promise<string> {
+    /**
+     * Issue a 'submit'
+     *
+     * @param fnName
+     * @param args
+     */
+    public async submit(fnName: string, args: string[]): Promise<string> {
         if (!this.contract) {
             await this.establish();
         }
         if (this.contract) {
             const issueResponse = await this.contract.submitTransaction(fnName, ...args);
             return issueResponse.toString();
-
         }
-        return "failed";
-
+        return 'failed';
     }
 
-    destroy() {
+    public destroy(): void {
         if (this.gateway) {
             this.gateway.disconnect();
         }
-
     }
-
-    
-
 }

@@ -1,23 +1,22 @@
 {
-  "name": "runhfsc",
-  "version": "1.0.0",
-  "description": "",
+  "name": "@hyperledgendary/runhfsc",
+  "version": "0.0.1",
+  "description": "Simple CLI for testing transactions",
   "bin": {
     "runhfsc": "lib/main.js"
   },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "build": "npm run test",
-    "compile": "tsc",
-    "_precompile": "npm run eslint",
-    "pretest": "npm run compile",
-    "test": "nyc mocha --require ts-node/register --recursive 'test/unit/**/*.spec.ts' --reporter azure-mocha-reporter",
-    "eslint": "eslint src --ext .ts"
+    "clean": "rimraf lib",
+    "format": "prettier --write \"{src,test}/**/*.ts\"",
+    "lint": "eslint '*/**/*.{js,ts,tsx}' --quiet --fix",
+    "build": "npm run format && npm run clean && npm run lint && echo Using TypeScript && tsc --version && tsc --pretty",
+    "release": "standard-version"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/hyperledger/fabric-chaincode-node"
+    "url": "https://github.com/hyperledgendary/runhfsc"
   },
   "keywords": [
     "fabric-ledger",
@@ -25,22 +24,28 @@
     "Fabric Ledger"
   ],
   "author": "",
-  "license": "ISC",
+  "license": "Apache 2.0",
   "devDependencies": {
-    "@types/node": "^13.7.0",
-    "eslint": "^6.8.0",
-    "typescript": "^3.7.5"
+    "@types/node": "^14.0.11",
+    "@types/yargs": "^15.0.3",
+    "@typescript-eslint/eslint-plugin": "^3.1.0",
+    "@typescript-eslint/parser": "^3.1.0",
+    "eslint": "^7.2.0",
+    "eslint-config-prettier": "^6.11.0",
+    "eslint-plugin-prettier": "^3.1.3",
+    "prettier": "^2.0.5",
+    "typescript": "^3.9.5"
   },
   "dependencies": {
-    "@types/yargs": "^15.0.3",
-    "@typescript-eslint/eslint-plugin": "^2.19.0",
-    "@typescript-eslint/parser": "^2.19.0",
+    "@types/js-yaml": "^3.12.5",
+    "chalk": "^4.1.0",
     "cliffy": "^2.3.0",
-    "fabric-network": "^2.1.1-snapshot.364",
-    "jsome": "^2.5.0",
-    "json-colorizer": "^2.2.1",
-    "pretty-js": "^0.2.1",
-    "prettyjson": "^1.2.1",
+    "fabric-network": "^2.1.2",
+    "js-yaml": "^3.14.0",
+    "standard-version": "^8.0.0",
     "yargs": "^15.1.0"
+  },
+  "engines": {
+    "node": ">=12.15.0"
   }
 }
