@@ -1,6 +1,6 @@
 {
   "name": "@hyperledgendary/runhfsc",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Simple CLI for testing transactions",
   "bin": {
     "runhfsc": "lib/main.js"
