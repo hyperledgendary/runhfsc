@@ -42,7 +42,7 @@
     "cliffy": "^2.3.0",
     "fabric-network": "^2.1.2",
     "js-yaml": "^3.14.0",
-    "standard-version": "^8.0.0",
+    "standard-version": "^8.0.1",
     "yargs": "^15.1.0"
   },
   "engines": {
