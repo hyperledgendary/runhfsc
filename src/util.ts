@@ -16,7 +16,7 @@ export const getGatewayProfile = (profilename: string): any => {
     if (JSON_EXT.exec(type)) {
         return JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
     } else if (YAML_EXT.exec(type)) {
-        return yaml.safeLoad(fs.readFileSync(ccpPath, 'utf8'));
+        return yaml.load(fs.readFileSync(ccpPath, 'utf8'));
     } else {
         throw new Error(`Extension of ${ccpPath} not recognised`);
     }
