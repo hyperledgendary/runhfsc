@@ -13,7 +13,7 @@
         "@hyperledger/fabric-gateway": "^1.0.1",
         "@types/pino": "^7.0.5",
         "@types/source-map-support": "^0.5.4",
-        "chalk": "^5.0.1",
+        "chalk": "^4.1.2",
         "cliffy": "^2.4.3",
         "env-var": "^7.1.1",
         "js-yaml": "^4.1.0",
@@ -170,9 +170,9 @@
       }
     },
     "node_modules/@grpc/grpc-js": {
-      "version": "1.5.7",
-      "resolved": "https://registry.npmjs.org/@grpc/grpc-js/-/grpc-js-1.5.7.tgz",
-      "integrity": "sha512-RAlSbZ9LXo0wNoHKeUlwP9dtGgVBDUbnBKFpfAv5iSqMG4qWz9um2yLH215+Wow1I48etIa1QMS+WAGmsE/7HQ==",
+      "version": "1.6.2",
+      "resolved": "https://registry.npmjs.org/@grpc/grpc-js/-/grpc-js-1.6.2.tgz",
+      "integrity": "sha512-9+89Ne1K8F9u86T+l1yIV2DS+dWHYVK61SsDZN4MFTFehOOaJ4rHxa1cW8Lwdn2/6tOx7N3+SY/vfcjztOHopA==",
       "dependencies": {
         "@grpc/proto-loader": "^0.6.4",
         "@types/node": ">=12.12.47"
@@ -355,12 +355,6 @@
       "resolved": "https://registry.npmjs.org/@tsconfig/node16/-/node16-1.0.2.tgz",
       "integrity": "sha512-eZxlbI8GZscaGS7kkc/trHTT5xgrjH3/1n2JDwusC9iahPKWMRvRjJSAN5mCXviuTGQ/lHnhvv8Q1YTpnfz9gA==",
       "dev": true
-    },
-    "node_modules/@tsconfig/node16-strictest-esm": {
-      "version": "1.0.0",
-      "resolved": "https://registry.npmjs.org/@tsconfig/node16-strictest-esm/-/node16-strictest-esm-1.0.0.tgz",
-      "integrity": "sha512-B/R4m4fy4ZKvAjwpDW3BdfNHYhRltMPpUdZTI0RpKSTU6HzA7Ub3XskVmbFG45JaOcjuTqXzO7o4rDG0LfUYzQ==",
-      "extraneous": true
     },
     "node_modules/@types/js-yaml": {
       "version": "4.0.5",
@@ -4097,9 +4091,9 @@
       }
     },
     "@grpc/grpc-js": {
-      "version": "1.5.7",
-      "resolved": "https://registry.npmjs.org/@grpc/grpc-js/-/grpc-js-1.5.7.tgz",
-      "integrity": "sha512-RAlSbZ9LXo0wNoHKeUlwP9dtGgVBDUbnBKFpfAv5iSqMG4qWz9um2yLH215+Wow1I48etIa1QMS+WAGmsE/7HQ==",
+      "version": "1.6.2",
+      "resolved": "https://registry.npmjs.org/@grpc/grpc-js/-/grpc-js-1.6.2.tgz",
+      "integrity": "sha512-9+89Ne1K8F9u86T+l1yIV2DS+dWHYVK61SsDZN4MFTFehOOaJ4rHxa1cW8Lwdn2/6tOx7N3+SY/vfcjztOHopA==",
       "requires": {
         "@grpc/proto-loader": "^0.6.4",
         "@types/node": ">=12.12.47"
@@ -4252,11 +4246,6 @@
       "resolved": "https://registry.npmjs.org/@tsconfig/node16/-/node16-1.0.2.tgz",
       "integrity": "sha512-eZxlbI8GZscaGS7kkc/trHTT5xgrjH3/1n2JDwusC9iahPKWMRvRjJSAN5mCXviuTGQ/lHnhvv8Q1YTpnfz9gA==",
       "dev": true
-    },
-    "@tsconfig/node16-strictest-esm": {
-      "version": "https://registry.npmjs.org/@tsconfig/node16-strictest-esm/-/node16-strictest-esm-1.0.0.tgz",
-      "integrity": "sha512-B/R4m4fy4ZKvAjwpDW3BdfNHYhRltMPpUdZTI0RpKSTU6HzA7Ub3XskVmbFG45JaOcjuTqXzO7o4rDG0LfUYzQ==",
-      "extraneous": true
     },
     "@types/js-yaml": {
       "version": "4.0.5",
