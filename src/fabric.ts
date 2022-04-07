@@ -1,79 +1,84 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
  */
-
-import * as fs from 'fs';
+import * as grpc from '@grpc/grpc-js';
+import { connect, Contract, Gateway, Identity, Network, Signer, signers } from '@hyperledger/fabric-gateway';
+import { promises as fs } from 'fs';
 import * as path from 'path';
-import { Wallets, Gateway, Wallet, Network, Contract } from 'fabric-network';
-// import { pathToFileURL } from 'url';
-import * as os from 'os';
 
-import { getGatewayProfile } from './util';
+import { FabricConfig } from './fabricconfig';
+import * as crypto from 'crypto';
+import { TextDecoder, TextEncoder } from 'util';
+import JSONIDAdapter from './jsonid-adapter';
+import { ConnectionHelper } from './fabirc-connection-profile';
+import { logger } from './logger';
+
+const utf8Decoder = new TextDecoder();
 
 /** Helper class for handling connections to Fabric or IBP */
 export default class Fabric {
+    client!: grpc.Client;
     /**
      * Return general information
      */
     getInfo(): string {
-        let str = `Identity: ${this.userName} \n`;
-        str += `Channel: ${this.channel} \n`;
-        str += `Contract: ${this.contractId} \n`;
-        str += `Connection: ${this.connectionProfile.displayName}`;
+        let str = `Fabric Configuration "${this.cliName}" \n`;
+        str += `Channel:        ${this.channel} \n`;
+        str += `Contract:       ${this.contractId} \n`;
+        // str += `Peer Endpoint:  ${this.cfg.gateway.peerEndpoint} \n`;
+        // str += `mspid:          ${this.cfg.mspId} \n`;
+        // str += `Id Cert:        ${this.cfg.userCertificate} \n`;
+        // str += `Id Private Key: ${this.cfg.userPrivateKey} \n`;
         return str;
     }
 
     private cliName: string;
 
-    constructor(cliName: string, wallet: Wallet, connectionProfile: any) {
+    constructor(cliName: string, cfg: FabricConfig) {
         this.cliName = cliName;
-        this.mywallet = wallet;
-        this.connectionProfile = connectionProfile;
+        this.cfg = cfg;
     }
 
-    private mywallet: Wallet;
+    private cfg: FabricConfig;
+
     private gateway: Gateway | undefined;
     private network: Network | undefined;
-    private connectionProfile: any;
     private userName = '';
     private channel = '';
     private contractId = '';
     private connected = false;
     private contract: Contract | undefined;
 
-    static async newFabric(cliName: string, walletPath: string, connectionPath: string): Promise<Fabric> {
-        let wp = path.resolve(walletPath);
-        if (!fs.existsSync(wp)) {
-            // so doesn't exist so try to check a default location
-            const homeWalletPath = path.join(os.homedir(), '.ibpwallets', walletPath);
-            if (!fs.existsSync(homeWalletPath)) {
-                // give up
-                throw new Error(`Can not locate wallet ${wp} or ${homeWalletPath}`);
+    static async newFabric(cliName: string, cfg: FabricConfig): Promise<Fabric> {
+        return new Fabric(cliName, cfg);
+    }
+
+    async newGrpcConnection(): Promise<grpc.Client> {
+        if (this.cfg.gateway) {
+            logger.debug(this.cfg.gateway, 'creating new gRPC connection  gateway');
+            const tlsRootCert = await fs.readFile(this.cfg.gateway.tlsCertFile);
+            const tlsCredentials = grpc.credentials.createSsl(tlsRootCert);
+            if (this.cfg.gateway.sslHostNameOverride) {
+                return new grpc.Client(this.cfg.gateway.peerEndpoint, tlsCredentials, {
+                    'grpc.ssl_target_name_override': this.cfg.gateway.sslHostNameOverride,
+                });
             } else {
-                wp = homeWalletPath;
+                return new grpc.Client(this.cfg.gateway.peerEndpoint, tlsCredentials);
             }
-        }
-
-        const wallet = await Wallets.newFileSystemWallet(wp);
-        // Load connection profile; will be used to locate a gateway
-
-        let cp = path.resolve(connectionPath);
-        if (!fs.existsSync(cp)) {
-            // so doesn't exist so try to check a default location
-            const gatewayPath = path.join(os.homedir(), '.ibpgateways', connectionPath);
-            if (!fs.existsSync(gatewayPath)) {
-                // give up
-                throw new Error(`Can not locate wallet ${wp}`);
+        } else if (this.cfg.indirect && this.cfg.indirect.connectionProfileFile) {
+            // create from, profile
+            let peerEndpoint = '';
+            const profile = ConnectionHelper.loadProfile(this.cfg.indirect.connectionProfileFile);
+            if (this.cfg.indirect.peerName) {
+                peerEndpoint = profile.peers[this.cfg.indirect.peerName].url;
             } else {
-                cp = gatewayPath;
+                peerEndpoint = profile.peers[Object.keys(profile.peers)[0]].url;
             }
-        }
 
-        if (fs.statSync(cp).isDirectory()) {
-            cp = path.join(cp, 'gateway.json');
+            return new grpc.Client(peerEndpoint, grpc.credentials.createInsecure());
+        } else {
+            throw new Error('not enough information to create grpc connection');
         }
-
-        return new Fabric(cliName, wallet, getGatewayProfile(cp));
     }
 
     public getCliName(): string {
@@ -108,39 +113,52 @@ export default class Fabric {
      * Establish the connection based on the current values
      */
     public async establish(): Promise<string> {
-        // disconnect the gateway if it exists
-        if (this.gateway) {
-            this.gateway.disconnect();
+        this.client = await this.newGrpcConnection();
+
+        let identity;
+        let signer;
+
+        // if there is an 'indirect' configuration, with a wallet and wallet user specified
+        // load that user via the JSONIDAdapter
+        if (this.cfg.indirect && this.cfg.indirect.wallet && this.cfg.indirect.walletuser) {
+            logger.debug('Using indirect');
+            const jsonAdapter: JSONIDAdapter = new JSONIDAdapter(path.resolve(this.cfg.indirect.wallet));
+            identity = await jsonAdapter.getIdentity(this.cfg.indirect.walletuser);
+            signer = await jsonAdapter.getSigner(this.cfg.indirect.walletuser);
+        } else if (this.cfg.gateway) {
+            logger.debug('Using gateway');
+            // this is the gateway specificiation
+            identity = await this.newIdentity();
+            signer = await this.newSigner();
+        } else {
+            throw new Error('Insufficient configuration to create an identity for connection');
         }
-        // A gateway defines the peers used to access Fabric networks
-        this.gateway = new Gateway();
 
-        if (this.userName === '') {
-            return 'UserName required';
-        }
-
-        if (this.channel === '') {
-            return 'Channel required';
-        }
-
-        if (this.contractId === '') {
-            return 'Contract required';
-        }
-
-        // Set connection options; identity and wallet
-        const connectionOptions = {
-            identity: this.userName,
-            wallet: this.mywallet,
-            discovery: { enabled: true, asLocalhost: false },
-        };
-
-        // Connect to gateway using application specified parameters
-        await this.gateway.connect(this.connectionProfile, connectionOptions);
+        // Set connection options and connect
+        this.gateway = connect({
+            client: this.client,
+            identity,
+            signer,
+            // Default timeouts for different gRPC calls
+            evaluateOptions: () => {
+                return { deadline: Date.now() + 5000 }; // 5 seconds
+            },
+            endorseOptions: () => {
+                return { deadline: Date.now() + 15000 }; // 15 seconds
+            },
+            submitOptions: () => {
+                return { deadline: Date.now() + 5000 }; // 5 seconds
+            },
+            commitStatusOptions: () => {
+                return { deadline: Date.now() + 60000 }; // 1 minute
+            },
+        });
+        logger.debug('Connected');
         this.connected = true;
         return 'Connected';
     }
 
-    public getConnected(): boolean {
+    public isConnected(): boolean {
         return this.connected;
     }
 
@@ -155,14 +173,10 @@ export default class Fabric {
             await this.establish();
         }
 
-        if (!this.gateway || !this.channel) {
-            throw new Error('Not properly connected');
-        }
-        this.network = await this.gateway.getNetwork(this.channel);
-        this.contract = await this.network.getContract(this.contractId);
-
+        this.network = this.gateway!.getNetwork(this.channel);
+        this.contract = this.network.getContract(this.contractId);
         const issueResponse = await this.contract.evaluateTransaction(fnName, ...args);
-        return issueResponse.toString();
+        return this.bytesAsString(issueResponse);
     }
 
     /**
@@ -172,21 +186,64 @@ export default class Fabric {
      * @param args
      */
     public async submit(fnName: string, args: string[]): Promise<string> {
-        if (!this.contract) {
+        if (!this.connected) {
             await this.establish();
         }
-        if (this.contract) {
-            // log({msg:fnName,val:args});
-            console.log(args);
-            const issueResponse = await this.contract.submitTransaction(fnName, ...args);
-            return issueResponse.toString();
-        }
-        return '';
+
+        this.network = this.gateway!.getNetwork(this.channel);
+        this.contract = this.network.getContract(this.contractId);
+
+        const issueResponse = await this.contract.submitTransaction(fnName, ...args);
+        return this.bytesAsString(issueResponse);
     }
 
+    /** private function to convert from the binary array to a string */
+    bytesAsString(bytes?: Uint8Array): string {
+        return utf8Decoder.decode(bytes);
+    }
+
+    /** Shutdown */
     public destroy(): void {
         if (this.gateway) {
-            this.gateway.disconnect();
+            this.gateway.close();
+            this.connected = false;
         }
+    }
+
+    /**
+     * Create the runtime identity from the supplied files
+     * @returns new Identity
+     */
+    async newIdentity(): Promise<Identity> {
+        let certificate;
+        let mspId;
+        const enc = new TextEncoder();
+        if (this.cfg.gateway!.userIdFile) {
+            const id = JSON.parse(await fs.readFile(this.cfg.gateway!.userIdFile, 'utf-8'));
+
+            certificate = enc.encode(id['credentials']['certificate']);
+            mspId = id['mspId'];
+        } else {
+            certificate = await fs.readFile(this.cfg.gateway!.userCertificateFile!);
+            mspId = this.cfg.gateway!.mspId;
+        }
+
+        return { mspId, credentials: certificate };
+    }
+
+    async newSigner(): Promise<Signer> {
+        let privateKeyPem;
+        if (this.cfg.gateway!.userIdFile) {
+            const id = JSON.parse(await fs.readFile(this.cfg.gateway!.userIdFile, 'utf-8'));
+            privateKeyPem = id['credentials']['privateKey'];
+        } else {
+            const files = await fs.readdir(this.cfg.gateway!.userPrivateKeyFile!);
+            const keyPath = path.resolve(this.cfg.gateway!.userPrivateKeyFile!, files[0]);
+            privateKeyPem = await fs.readFile(keyPath);
+        }
+
+        const privateKey = crypto.createPrivateKey(privateKeyPem);
+
+        return signers.newPrivateKeySigner(privateKey);
     }
 }

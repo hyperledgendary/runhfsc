@@ -1,17 +1,14 @@
 
 # runhfsc - Development REPL for Fabric/IBP
 
-A simple CLI for testing smart contracts from the command line. Quick and simple general purpose
-application. 
+A simple CLI for testing smart contracts from the command line. Quick and simple general purpose application.
 
 Usable with Hyperledger Fabric version2 or IBM Blockchain Platform
-
-[![asciicast](https://asciinema.org/a/345618.svg)](https://asciinema.org/a/345618)
 
 
 ## Installation
 
-It's a nodejs v12 application, so install that first.
+It's a nodejs v16 application, so install that first.
 
 ```bash
 npm install -g @hyperledgendary/runhfsc
@@ -19,116 +16,187 @@ npm install -g @hyperledgendary/runhfsc
 
 ## Usage
 
-You need to have available the 'Gateway' JSON or YAML connection profile, and have an 'Application' wallet with an identity to use.
+The invoking command line is very simple
 
-Run `runhfsc` with options to specify these. If you give relative paths, then they are assumed to tbe related to `~/.ibpwallets` for the wallet, and `~/.ibpgateways` for the gateway
-
-```bash
-runhfsc --wallet org1 --gateway org1/Gateway.json
-[default] <user>@<channel>:<contractid> - $ 
+```
+Options:
+      --help     Show help  [boolean]
+  -c, --config   configuration file  [string] [default: "./testConfig.json"]
+  -v, --version  Show version number  [boolean]
 ```
 
-The command prompt you are presented with tells you the user you are currently connected with, and the channel and the contract that you are targetting. 
+Essentially just the location of the configuration file, setting the environment variable `RUNHFSC_CONFIG` can also be used and it will update the default. In Docker containers, use the environment variable. On a local command line, the `-c` option is often easier.
 
-(aside the default indicates a label marking the combination of wallet and gateway - not fully implemented yet)
+`RUNHFSC_LOG=$(pwd)/_cfg/debug.log` will control the location of the debug log file.
 
-To be able to 'evaluate' or 'submit' a transaction,  you need to specify a user, channel and contract.
+## Configuration File
 
-```bash
-[default] <user>@<channel>:<contractid> - $ user appid
-User set to appid
-Connected to Fabric 
+_Dev Notes_
+- should the config file be in yaml (or even CUE?)
+- JSON schema?
+
+The structure of the config file is important; it is a JSON object with separate named configurations to connect to different Fabric Networks.
+
+In the example below, there are three `default` `k8s` and `vscode`. With the advent of the new Peer Gateway and Gateway client SDKs the conection information is presented differently.  The `gateway` is indicating that this is how the information should be understand. The `indirect` is indicating that the information should be understood from the previous generation of SDKs - namely using connection profiles and wallets.
+
+
 ```
-
-Then the channel
-```bash
-[default] appid@<channel>:<contractid> - $ channel mychannel
-Channel set to mychannel
-```
-
-Then the contract
-```bash
-[default] appid@mychannel:<contractid> - $ contract fabcar
-Contract set to fabcar
-```
-
-Now to run a transaction
-
-## Run transactions
-Transactions can either by 'evaluated' - a query type operation only sent to one peer - or 'submited' - where the transaction is sent to all required peers for execution and endorsement.
-
-Two commands `evaluate` and `submit` are available, with the same syntax
-
-```bash
-[default] appid@mychannel:fabcar - $ evaluate queryAllCars '[]'
-Submitted args []
-> [{"Key":"CAR0","Record":{"color":"blue","docType":"car","make":"Toyota","model":"Prius","owner":"Tomoko"}},{"Key":"CAR1","Record":{"color":"red","docType":"car","make":"Ford","model":"Mustang","owner":"Brad"}},{"Key":"CAR2","Record":{"color":"green","docType":"car","make":"Hyundai","model":"Tucson","owner":"Jin Soo"}},{"Key":"CAR3","Record":{"color":"yellow","docType":"car","make":"Volkswagen","model":"Passat","owner":"Max"}},{"Key":"CAR4","Record":{"color":"black","docType":"car","make":"Tesla","model":"S","owner":"Adriana"}},{"Key":"CAR5","Record":{"color":"purple","docType":"car","make":"Peugeot","model":"205","owner":"Michel"}},{"Key":"CAR6","Record":{"color":"white","docType":"car","make":"Chery","model":"S22L","owner":"Aarav"}},{"Key":"CAR7","Record":{"color":"violet","docType":"car","make":"Fiat","model":"Punto","owner":"Pari"}},{"Key":"CAR8","Record":{"color":"indigo","docType":"car","make":"Tata","model":"Nano","owner":"Valeria"}},{"Key":"CAR9","Record":{"color":"brown","docType":"car","make":"Holden","model":"Barina","owner":"Shotaro"}}]
-```
-
-Note the parameters to the function MUST be a JSON format string - in this case this is empty.
-To give arguments, for example...
-
-```bash
-[default] appid@mychannel:fabcar # $ evaluate queryCar '["CAR1"]'
-Submitted args ["CAR1"]
-> {"color":"red","docType":"car","make":"Ford","model":"Mustang","owner":"Brad"}
-```
-
-Add the `@json` option to get the output formatted
-
-```bash
-default] appid@mychannel:fabcar # $ evaluate @json queryCar '["CAR1"]'
-Submitted args ["CAR1"]
-> {
-  color: 'red',
-  docType: 'car',
-  make: 'Ford',
-  model: 'Mustang',
-  owner: 'Brad'
+{
+    "default": {
+        "gateway": {
+            "tlsCertPath": "/home/matthew/github.com/hyperledger/fabri
+c-samples/test-network/organizations/peerOrganizations/org1.example.co
+m/peers/peer0.org1.example.com/tls/ca.crt",
+            "peerEndpoint": "localhost:7051",
+            "userPrivateKey": "/home/matthew/github.com/hyperledger/fa
+bric-samples/test-network/organizations/peerOrganizations/org1.example
+.com/users/User1@org1.example.com/msp/keystore",
+            "userCertificate": "/home/matthew/github.com/hyperledger/f
+abric-samples/test-network/organizations/peerOrganizations/org1.exampl
+e.com/users/User1@org1.example.com/msp/signcerts/cert.pem",
+            "sslHostNameOverride": "peer0.org1.example.com",
+            "mspId": "Org1MSP"
+        }
+    },
+    "k8s":{
+        "gateway":{
+            "tlsCertFile": "./_cfg/tlsca-signcert.pem",
+            "peerEndpoint": "org1-peer1.vcap.me",
+            "userIdFile": "./_cfg/appuser_org1.id"
+        }
+    },
+    "vscode": {
+        "indirect": {
+            "wallet": "./_cfg/Org1",
+            "walletuser": "Org1 Admin",
+            "profile": "./_cfg/Nx01Org1GatewayConnection.json"
+        }
+    }
 }
 ```
 
-To `submit` a transaction, eg to update an owner
-```bash 
-[default] appid@mychannel:fabcar - $ evaluate queryCar '["CAR9"]'
-Submitted queryCar  CAR9
-> {"color":"brown","docType":"car","make":"Holden","model":"Barina","owner":"fred"}
-[default] appid@mychannel:fabcar # $ submit changeCarOwner '["CAR9","BILL"]'
-Submitted changeCarOwner  CAR9,BILL
-> 
-[default] appid@mychannel:fabcar # $ evaluate queryCar '["CAR9"]'
-Submitted queryCar  CAR9
-> {"color":"brown","docType":"car","make":"Holden","model":"Barina","owner":"BILL"}
+Running `runhsc -c myConfig.json` (with the above config file)
+
 ```
 
-### metadata
-There is a shortcut to get hold of metadata of the contract. This lets you see for example what transactions can be run.
+                     __    ____
+   _______  ______  / /_  / __/_________
+  / ___/ / / / __ \/ __ \/ /_/ ___/ ___/
+ / /  / /_/ / / / / / / / __(__  ) /__
+/_/   \__,_/_/ /_/_/ /_/_/ /____/\___/
 
-```bash
-[default] appid@mychannel:fabcar # $ metadata
+runhfsc 0.0.4
+
+Reading configuration from  ./testConfig.json
+For help type 'help'
+
+[default] <channel>:<contractid> - $
+```
+
+The default configuration is used. Entering the command `configs` shows the configs available
+
+```
+Available configurations from ./testConfig.json
+default:
+  gateway:
+    tlsCertPath:         /home/matthew/github.com/hyperledger/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+    peerEndpoint:        localhost:7051
+    userPrivateKey:      /home/matthew/github.com/hyperledger/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com/users/User1@org1.example.com/msp/keystore
+    userCertificate:     /home/matthew/github.com/hyperledger/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com/users/User1@org1.example.com/msp/signcerts/cert.pem
+    sslHostNameOverride: peer0.org1.example.com
+    mspId:               Org1MSP
+k8s:
+  gateway:
+    tlsCertFile:  ./_cfg/tlsca-signcert.pem
+    peerEndpoint: org1-peer1.vcap.me
+    userIdFile:   ./_cfg/appuser_org1.id
+vscode:
+  indirect:
+    wallet:     ./_cfg/Org1
+    walletuser: Org1 Admin
+    profile:    ./_cfg/Nx01Org1GatewayConnection.json
+```
+
+_note you might ask how the k8s values have arrived on a local disk..._
+
+To swap configs, eg to use the test-network-k8s.
+
+```
+$ config k8s
+Configuration set to k8s
+```
+
+Let's assume that the `test-network-k8s` is up, channel created, contract deploy, and the application config maps created
+
+```
+cd fabric-samples/test-network-k8s
+./network kind
+./network up
+./network channel create
+./network chaincode deploy
+./network application
+```
+
+We can then set the channel and contract name
+
+```
+[default] <channel>:<contractid> - $ config k8s
+Configuration set to k8s
+[k8s] <channel>:<contractid> - $ channel mychannel
+Channel set to mychannel
+[k8s] mychannel:<contractid> - $ contract asset-transfer-basic
+Contract set to asset-transfer-basic
+[k8s] mychannel:asset-transfer-basic - $
+```
+
+As an initial test, the contract metadata can be retrieved.(only a portion is show below)
+
+```
+[k8s] mychannel:asset-transfer-basic - $ metadata
 > {
-  '$schema': 'https://fabric-shim.github.io/release-1.4/contract-schema.json',
+  info: { title: 'undefined', version: 'latest' },
   contracts: {
-    FabCar: {
-      name: 'FabCar',
-      contractInstance: { name: 'FabCar', default: true },
+    SmartContract: {
+      info: { title: 'SmartContract', version: 'latest' },
+      name: 'SmartContract',
       transactions: [
-        { name: 'initLedger', tags: [ 'submitTx' ] },
-        { name: 'queryCar', tags: [ 'submitTx' ] },
-        { name: 'createCar', tags: [ 'submitTx' ] },
-        { name: 'queryAllCars', tags: [ 'submitTx' ] },
-        { name: 'changeCarOwner', tags: [ 'submitTx' ] }
-      ],
-      info: { title: '', version: '' }
-    },
-    'org.hyperledger.fabric': {
-      name: 'org.hyperledger.fabric',
-      contractInstance: { name: 'org.hyperledger.fabric' },
-      transactions: [ { name: 'GetMetadata' } ],
-      info: { title: '', version: '' }
+        {
+          parameters: [ { name: 'param0', schema: [Object] } ],
+          tag: [ 'submit' ],
+          ....
+```
+
+There is an `initLedger` transaction function, let's run that now, followed by a `getAllAssets`
+
+```
+[k8s] mychannel:asset-transfer-basic # $ submit initLedger
+Submitted initLedger
+>
+evaluate @json getAllAssets
+Submitted getAllAssets
+> [
+  {
+    Key: 'asset1',
+    Record: {
+      ID: 'asset1',
+      color: 'blue',
+      size: 5,
+      owner: 'Tomoko',
+      appraisedValue: 300
     }
   },
-  info: { version: '1.0.0', title: 'fabcar' },
-  components: { schemas: {} }
-}
+  ....
 ```
+The `@json` says to format out the JSON response.
+
+
+To get a single asset
+
+```
+evaluate readAsset '["asset6"]'
+Submitted readAsset  asset6
+> {"ID":"asset6","color":"white","size":15,"owner":"Michel","appraisedValue":800}
+```
+
+> Note the arguments are in JSON array format.... and don't forget to enclose the whole thing in ' '
+
