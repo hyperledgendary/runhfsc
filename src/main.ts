@@ -8,77 +8,90 @@ sourceMapSupport.install();
 
 import { CLI } from 'cliffy';
 import Fabric from './fabric';
-// import yargs = require('yargs');
-import * as chalk from 'chalk';
+
+import prettyjson from 'prettyjson';
 import * as util from 'util';
-// import * as path from 'path';
-// import { readFileSync } from 'fs';
+import * as path from 'path';
+import { existsSync, readFileSync } from 'fs';
 
 import * as env from 'env-var';
+import { FabricConfig } from './fabricconfig';
+import chalk = require('chalk');
 
-// const pjson = readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf-8');
-// const version = JSON.parse(pjson).version;
+import * as yargs from 'yargs';
 
-const wallet = env.get('WALLETPATH').required().asString();
-const gateway = env.get('GATEWAYPATH').required().asString();
-const user = env.get('USER').required().asString();
+import { logger } from './logger';
 
-// const opts: any = yargs
-//     .options({
-//         gateway: {
-//             type: 'string',
-//             description: 'Gateway profile file',
-//             requiresArg: true,
-//             required: 'true',
-//         },
-//         wallet: {
-//             type: 'string',
-//             description: 'wallet directory path',
-//             requiresArg: true,
-//             required: 'true',
-//         },
-//         user: {
-//             alias: 'u',
-//             description: 'User wallet label',
-//             requiresArg: true,
-//             default: '',
-//             require: false,
-//         },
-//     })
-//     .help()
-//     .wrap(null)
-//     .alias('v', 'version')
-//     .version(`ibpccl v${version}`)
-//     .usage('$0 --file filename')
-//     .help()
-//     .strict()
-//     .epilog('For usage see https://github.com/hyperledendary/runhfsc')
-//     .describe('v', 'show version information').argv;
-
-interface FabricInstance {
-    [key: string]: Fabric;
-}
-
-const fabrics: FabricInstance = {};
-const current = 'default';
-
-let cli: CLI;
+logger.debug('Starting runhfsc...');
 
 const log = ({ msg = '>', val = '', error = false }: { msg?: string; val?: string; error?: boolean }): void => {
     if (error) {
         console.log(chalk.redBright(msg) + ' ' + val);
     } else {
-        console.log(chalk.bold(msg) + ' ' + val);
+        console.log(chalk.blue.bold(msg) + ' ' + val);
     }
 };
 
+const pjson = readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf-8');
+const version = JSON.parse(pjson).version;
+
+const cmdLine: any = yargs
+    .help()
+    .wrap(null)
+    .alias('v', 'version')
+    .version(`runhfsc v${version}`)
+    .help()
+    .strict()
+    .options({
+        config: {
+            alias: 'c',
+            describe: 'configuration file',
+            type: 'string',
+            default: env.get('RUNHFSC_CONFIG').asString(),
+        },
+    }).argv;
+
+const configPath = cmdLine.config;
+
+/** Two 'maps' defined, one for the configurations loaded from the file, the second
+ * for instances of the Fabric class - that interfaces with the SDKs
+ */
+interface FabricInstance {
+    [key: string]: Fabric;
+}
+
+/** Config file is a map listing a name against a configuration */
+interface FabricConfigs {
+    [key: string]: FabricConfig;
+}
+
+const fabrics: FabricInstance = {};
+let fabricConfigs: FabricConfigs;
+let current = 'default';
+
+let cli: CLI;
+
+console.log(
+    chalk.blue.bold(`
+                     __    ____         
+   _______  ______  / /_  / __/_________
+  / ___/ / / / __ \\/ __ \\/ /_/ ___/ ___/
+ / /  / /_/ / / / / / / / __(__  ) /__  
+/_/   \\__,_/_/ /_/_/ /_/_/ /____/\\___/  
+`) +
+        `
+runhfsc ${version}
+`,
+);
+
+/* Create a simple prompt */
 const getPrompt = (): string => {
     const fabric = fabrics[current];
     if (!fabric) {
         return '[] > ';
     }
-    let user = fabric.getUser();
-    user = chalk.yellow(user === '' ? '<user>' : `${user}`);
+
+    const user = '';
 
     let channel = fabric.getChannel();
     channel = chalk.yellow(channel === '' ? '<channel>' : channel);
@@ -86,9 +99,9 @@ const getPrompt = (): string => {
     let contractId = fabric.getContractId();
     contractId = chalk.yellow(contractId === '' ? '<contractid>' : contractId);
 
-    const connected = fabric.getConnected() ? chalk.green('#') : chalk.gray('-');
+    const connected = fabric.isConnected() ? chalk.green('#') : chalk.gray('-');
 
-    return chalk`{blue [${current}]} ${user}@${channel}:${contractId} ${connected} $ `;
+    return chalk`{blue [${current}]} ${user}${channel}:${contractId} ${connected} $ `;
 };
 
 const actionWrapper = async (params: any, options: any, func: any): Promise<void> => {
@@ -100,37 +113,65 @@ const actionWrapper = async (params: any, options: any, func: any): Promise<void
     cli.setDelimiter(getPrompt());
 };
 
-const main = async (walletPath: string, connectionFile: string, user: string) => {
-    fabrics[current] = await Fabric.newFabric('default', walletPath, connectionFile);
-    if (user && user !== '') {
-        fabrics[current].setUser(user);
+/** Main function */
+const main = async () => {
+    if (!configPath) {
+        log({ msg: 'RUNHFSC_CONFIG file location must be specified', error: true });
+        process.exit(1);
     }
-    cli = new CLI().setDelimiter(getPrompt());
 
-    // cli.addCommand('fabric', {
-    //     description: 'Add new wallet and connection profile',
-    //     options: [],
-    //     parameters: [
-    //         { label: 'name', description: 'name' },
-    //         { label: 'gateway', description: 'Connection Profile' },
-    //         { label: 'wallet', description: 'application wallet ' },
-    //     ],
-    //     action: async (params, _options) => {
-    //         fabrics[params.name] = await Fabric.newFabric(params.name, params.wallet, params.profile);
-    //         current = params.name;
-    //         cli.setDelimiter(getPrompt());
-    //     },
-    // });
+    if (existsSync(configPath)) {
+        log({ msg: `Reading configuration from `, val: configPath });
+        fabricConfigs = JSON.parse(readFileSync(path.resolve(configPath), 'utf-8'));
+    } else {
+        throw new Error(`Unable to read ${configPath}`);
+    }
 
+    log({ msg: `For help type 'help'   \n ` });
+
+    // Use the default configuration to start with
+    fabrics[current] = await Fabric.newFabric('default', fabricConfigs['default']);
+    cli = new CLI({ input: process.stdin }).setDelimiter(getPrompt());
+
+    // define each command
     cli.addCommand('info', {
         description: 'Summary of the current settings',
         options: [],
-        aliases: ['i'],
         parameters: [],
         action: () => {
             if (fabrics[current]) {
                 log({ val: fabrics[current].getInfo() });
             }
+        },
+    });
+
+    cli.addCommand('config', {
+        description: 'swap configuration',
+        options: [],
+        parameters: [{ label: 'configid', description: 'configuration id' }],
+        action: async (params, _options) => {
+            if (params.configid) {
+                if (Object.keys(fabricConfigs).includes(params.configid as string)) {
+                    current = params.configid;
+                    fabrics[current] = await Fabric.newFabric(current, fabricConfigs[current]);
+                    log({ msg: 'Configuration set to', val: current });
+                } else {
+                    log({ msg: `Configuration "${params.configid}" not found` });
+                }
+            } else {
+                log({ val: JSON.stringify(fabricConfigs) });
+            }
+            cli.setDelimiter(getPrompt());
+        },
+    });
+
+    cli.addCommand('configs', {
+        description: 'list configurations',
+        options: [],
+        parameters: [],
+        action: async (_params, _options) => {
+            log({ msg: `Available configurations from ${configPath}`, val: '\n' + prettyjson.render(fabricConfigs) });
+            cli.setDelimiter(getPrompt());
         },
     });
 
@@ -147,23 +188,18 @@ const main = async (walletPath: string, connectionFile: string, user: string) =>
         },
     });
 
-    cli.addCommand('user', {
-        description: 'Set user',
+    cli.addCommand('connect', {
+        description: 'Connect to Peer Endpoint with Identity',
         options: [],
-        aliases: ['u'],
-        parameters: [{ label: 'username', description: 'User name' }],
-        action: async (params, _options) => {
-            fabrics[current].setUser(params.username);
-            log({ msg: 'User set to', val: params.username });
-            await fabrics[current].establish();
-            log({ msg: 'Connected to Fabric' });
+        action: async (_params, _options) => {
+            const response = await fabrics[current].establish();
+            log({ msg: 'Connected to Fabric' + response });
             cli.setDelimiter(getPrompt());
         },
     });
 
     cli.addCommand('channel', {
         description: 'Set channel',
-        aliases: ['n'],
         options: [],
         parameters: [{ label: 'channel', description: 'Channel name' }],
         action: (params, _options) => {
@@ -175,7 +211,6 @@ const main = async (walletPath: string, connectionFile: string, user: string) =>
 
     cli.addCommand('contract', {
         description: 'Set contract',
-        aliases: ['c'],
         options: [],
         parameters: [{ label: 'contract', description: 'contract name' }],
         action: (params, _options) => {
@@ -187,7 +222,6 @@ const main = async (walletPath: string, connectionFile: string, user: string) =>
 
     cli.addCommand('submit', {
         description: 'Submit transactions',
-        aliases: ['s'],
         options: [{ label: 'json', description: 'Format output data as JSON' }],
         parameters: [
             { label: 'txname', description: 'Transaction name' },
@@ -219,9 +253,9 @@ const main = async (walletPath: string, connectionFile: string, user: string) =>
             cli.setDelimiter(getPrompt());
         },
     });
+
     cli.addCommand('evaluate', {
         description: 'Evaluate transactions',
-        aliases: ['e'],
         parameters: [
             { label: 'txname', description: 'Transaction name' },
             {
@@ -243,31 +277,39 @@ const main = async (walletPath: string, connectionFile: string, user: string) =>
             const args: string[] = JSON.parse(params.args);
             log({ msg: `Submitted ${params.txname} `, val: args.join(',') });
 
-            const result = await fabrics[current].evaluate(params.txname, args);
-            if (options.json) {
-                log({ val: util.inspect(JSON.parse(result), false, 6, true) });
-            } else {
-                log({ val: result });
+            try {
+                const result = await fabrics[current].evaluate(params.txname, args);
+                if (options.json) {
+                    log({ val: util.inspect(JSON.parse(result), false, 6, true) });
+                } else {
+                    log({ val: result });
+                }
+            } catch (e) {
+                log({ val: (e as any).toString() });
             }
             cli.setDelimiter(getPrompt());
         },
     });
+
     cli.addCommand('metadata', {
         description: 'Display the metadata for the current contract',
-        aliases: ['m'],
         parameters: [],
         action: async (_params, _options) =>
             actionWrapper(_params, _options, async () => {
-                const result = await fabrics[current].evaluate('org.hyperledger.fabric:GetMetadata', []);
-
-                log({ val: util.inspect(JSON.parse(result), false, 6, true) });
+                logger.debug('Submiting for evaluate org.hyperledger.fabric:GetMetadata ');
+                try {
+                    const result = await fabrics[current].evaluate('org.hyperledger.fabric:GetMetadata', []);
+                    log({ val: util.inspect(JSON.parse(result), false, 6, true) });
+                } catch (error) {
+                    logger.debug(error);
+                }
                 cli.setDelimiter(getPrompt());
             }),
     });
     cli.show();
 };
 
-main(wallet, gateway, user).catch((e: any) => {
+main().catch((e: any) => {
     console.log(e);
     process.exit(1);
 });
