@@ -44,8 +44,7 @@ In the example below, there are three `default` `k8s` and `vscode`. With the adv
 {
     "default": {
         "gateway": {
-            "tlsCertPath": "/home/matthew/github.com/hyperledger/fabri
-c-samples/test-network/organizations/peerOrganizations/org1.example.co
+            "tlsCertPath": "/home/matthew/github.com/hyperledger/fabric-samples/test-network/organizations/peerOrganizations/org1.example.co
 m/peers/peer0.org1.example.com/tls/ca.crt",
             "peerEndpoint": "localhost:7051",
             "userPrivateKey": "/home/matthew/github.com/hyperledger/fa

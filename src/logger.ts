@@ -8,5 +8,5 @@ export const logger = pino(
     {
         level: 'debug',
     },
-    pino.destination(process.env.RUNHFSC_LOG || './runhdsc.log'),
+    pino.destination(process.env.RUNHFSC_LOG || './runhfsc.log'),
 );

@@ -1,6 +1,7 @@
 node_modules
 testConfig.json
 *tgz
+runhfsc.log
 
 _cfg
 lib

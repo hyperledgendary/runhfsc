@@ -20,6 +20,8 @@ import chalk = require('chalk');
 
 import * as yargs from 'yargs';
 
+import jsonata from 'jsonata';
+
 import { logger } from './logger';
 
 logger.debug('Starting runhfsc...');
@@ -51,7 +53,7 @@ const cmdLine: any = yargs
         },
     }).argv;
 
-const configPath = cmdLine.config;
+let configPath = cmdLine.config;
 
 /** Two 'maps' defined, one for the configurations loaded from the file, the second
  * for instances of the Fabric class - that interfaces with the SDKs
@@ -116,8 +118,10 @@ const actionWrapper = async (params: any, options: any, func: any): Promise<void
 /** Main function */
 const main = async () => {
     if (!configPath) {
-        log({ msg: 'RUNHFSC_CONFIG file location must be specified', error: true });
-        process.exit(1);
+        log({ msg: 'No configuration file specified, assuming runhfsc.cfg in current directory' });
+        configPath = path.resolve('./runhfsc.json');
+        // log({ msg: 'RUNHFSC_CONFIG file location must be specified', error: true });
+        // process.exit(1);
     }
 
     if (existsSync(configPath)) {
@@ -241,9 +245,13 @@ const main = async () => {
                 params.args = '[]';
             }
             const args: string[] = JSON.parse(params.args);
-            log({ msg: `Submitted ${params.txname} `, val: args.join(',') });
+            console.log(args);
 
-            const result = await fabrics[current].submit(params.txname, args);
+            const txArgs = args.map((v) => JSON.stringify(v));
+
+            log({ msg: `Submitted ${params.txname} `, val: txArgs.join(',') });
+
+            const result = await fabrics[current].submit(params.txname, txArgs);
             if (options.json) {
                 log({ val: util.inspect(JSON.parse(result), false, 6, true) });
             } else {
@@ -293,15 +301,21 @@ const main = async () => {
 
     cli.addCommand('metadata', {
         description: 'Display the metadata for the current contract',
-        parameters: [],
+        parameters: [{ label: 'Query', description: 'Simple query string (jsonata) ', optional: true }],
         action: async (_params, _options) =>
             actionWrapper(_params, _options, async () => {
                 logger.debug('Submiting for evaluate org.hyperledger.fabric:GetMetadata ');
                 try {
                     const result = await fabrics[current].evaluate('org.hyperledger.fabric:GetMetadata', []);
-                    log({ val: util.inspect(JSON.parse(result), false, 6, true) });
+                    let metadataJSON = JSON.parse(result);
+                    if (_params['Query']) {
+                        const expression = jsonata(_params['Query']);
+                        metadataJSON = expression.evaluate(metadataJSON);
+                    }
+                    log({ val: util.inspect(metadataJSON, false, 8, true) });
                 } catch (error) {
                     logger.debug(error);
+                    log({ val: (error as any).toString() });
                 }
                 cli.setDelimiter(getPrompt());
             }),

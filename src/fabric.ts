@@ -10,7 +10,7 @@ import { FabricConfig } from './fabricconfig';
 import * as crypto from 'crypto';
 import { TextDecoder, TextEncoder } from 'util';
 import JSONIDAdapter from './jsonid-adapter';
-import { ConnectionHelper } from './fabirc-connection-profile';
+import { ConnectionHelper } from './fabric-connection-profile';
 import { logger } from './logger';
 
 const utf8Decoder = new TextDecoder();
@@ -37,6 +37,14 @@ export default class Fabric {
     constructor(cliName: string, cfg: FabricConfig) {
         this.cliName = cliName;
         this.cfg = cfg;
+
+        if (cfg.defaultChannel) {
+            this.channel = cfg.defaultChannel;
+        }
+
+        if (cfg.defaultContract) {
+            this.contractId = cfg.defaultContract;
+        }
     }
 
     private cfg: FabricConfig;
@@ -54,28 +62,26 @@ export default class Fabric {
     }
 
     async newGrpcConnection(): Promise<grpc.Client> {
-        if (this.cfg.gateway) {
-            logger.debug(this.cfg.gateway, 'creating new gRPC connection  gateway');
-            const tlsRootCert = await fs.readFile(this.cfg.gateway.tlsCertFile);
-            const tlsCredentials = grpc.credentials.createSsl(tlsRootCert);
-            if (this.cfg.gateway.sslHostNameOverride) {
-                return new grpc.Client(this.cfg.gateway.peerEndpoint, tlsCredentials, {
-                    'grpc.ssl_target_name_override': this.cfg.gateway.sslHostNameOverride,
-                });
-            } else {
-                return new grpc.Client(this.cfg.gateway.peerEndpoint, tlsCredentials);
-            }
-        } else if (this.cfg.indirect && this.cfg.indirect.connectionProfileFile) {
-            // create from, profile
-            let peerEndpoint = '';
-            const profile = ConnectionHelper.loadProfile(this.cfg.indirect.connectionProfileFile);
-            if (this.cfg.indirect.peerName) {
-                peerEndpoint = profile.peers[this.cfg.indirect.peerName].url;
-            } else {
-                peerEndpoint = profile.peers[Object.keys(profile.peers)[0]].url;
-            }
+        if ('peerEndpoint' in this.cfg.endpoint) {
+            logger.debug(this.cfg, 'creating new gRPC connection  gateway');
 
-            return new grpc.Client(peerEndpoint, grpc.credentials.createInsecure());
+            if (this.cfg.tlsEnabled) {
+                const tlsRootCert = await fs.readFile(this.cfg.endpoint.tlsCertFile);
+                const tlsCredentials = grpc.credentials.createSsl(tlsRootCert);
+                if (this.cfg.endpoint.sslHostNameOverride) {
+                    return new grpc.Client(this.cfg.endpoint.peerEndpoint, tlsCredentials, {
+                        'grpc.ssl_target_name_override': this.cfg.endpoint.sslHostNameOverride,
+                    });
+                } else {
+                    return new grpc.Client(this.cfg.endpoint.peerEndpoint, tlsCredentials);
+                }
+            } else {
+                logger.debug('Not using tls');
+                return new grpc.Client(this.cfg.endpoint.peerEndpoint, grpc.credentials.createInsecure());
+            }
+        } else if ('connectionProfileFile' in this.cfg.endpoint) {
+            const cp = await ConnectionHelper.loadProfile(this.cfg.endpoint.connectionProfileFile);
+            return await ConnectionHelper.newGrpcConnection(cp, this.cfg.tlsEnabled);
         } else {
             throw new Error('not enough information to create grpc connection');
         }
@@ -120,20 +126,56 @@ export default class Fabric {
 
         // if there is an 'indirect' configuration, with a wallet and wallet user specified
         // load that user via the JSONIDAdapter
-        if (this.cfg.indirect && this.cfg.indirect.wallet && this.cfg.indirect.walletuser) {
-            logger.debug('Using indirect');
-            const jsonAdapter: JSONIDAdapter = new JSONIDAdapter(path.resolve(this.cfg.indirect.wallet));
-            identity = await jsonAdapter.getIdentity(this.cfg.indirect.walletuser);
-            signer = await jsonAdapter.getSigner(this.cfg.indirect.walletuser);
-        } else if (this.cfg.gateway) {
+        if ('wallet' in this.cfg.identity) {
+            logger.debug('Using wallet');
+
+            const jsonAdapter: JSONIDAdapter = new JSONIDAdapter(path.resolve(this.cfg.identity.wallet));
+            identity = await jsonAdapter.getIdentity(this.cfg.identity.walletuser);
+            signer = await jsonAdapter.getSigner(this.cfg.identity.walletuser);
+        } else if ('userPrivateKeyFile' in this.cfg.identity) {
             logger.debug('Using gateway');
             // this is the gateway specificiation
-            identity = await this.newIdentity();
-            signer = await this.newSigner();
+            const certificate = await fs.readFile(this.cfg.identity.userCertificateFile);
+            identity = {
+                mspId: this.cfg.identity.mspId,
+                credentials: certificate,
+            };
+
+            const files = await fs.readdir(this.cfg.identity.userPrivateKeyFile);
+            const keyPath = path.resolve(this.cfg.identity.userPrivateKeyFile, files[0]);
+            logger.debug(keyPath);
+            const privateKeyPem = await fs.readFile(keyPath);
+            logger.debug(privateKeyPem);
+            const privateKey = crypto.createPrivateKey(privateKeyPem);
+            signer = signers.newPrivateKeySigner(privateKey);
+        } else if ('idFile' in this.cfg.identity) {
+            const dir = path.dirname(this.cfg.identity.idFile);
+            const idfile = path.basename(this.cfg.identity.idFile);
+
+            const jsonAdapter: JSONIDAdapter = new JSONIDAdapter(path.resolve(dir), this.cfg.identity.mspId);
+            identity = await jsonAdapter.getIdentity(idfile);
+            signer = await jsonAdapter.getSigner(idfile);
+
+            // this is the gateway specificiation
+            // const id = JSON.parse(await fs.readFile(this.cfg.identity.idFile, 'utf-8'));
+            // const enc = new TextEncoder();
+            // const certificate = enc.encode(id['credentials']['certificate']);
+            // identity = {
+            //     mspId: id['mspId'],
+            //     credentials: certificate,
+            // };
+
+            // const privateKeyPem = id['credentials']['privateKey'];
+
+            // const privateKey = crypto.createPrivateKey(privateKeyPem);
+            // signer = signers.newPrivateKeySigner(privateKey);
         } else {
             throw new Error('Insufficient configuration to create an identity for connection');
         }
 
+        logger.debug(identity, 'identity');
+        logger.debug('Signer');
+        logger.debug(signer, 'signer');
         // Set connection options and connect
         this.gateway = connect({
             client: this.client,
@@ -189,7 +231,7 @@ export default class Fabric {
         if (!this.connected) {
             await this.establish();
         }
-
+        console.log(args);
         this.network = this.gateway!.getNetwork(this.channel);
         this.contract = this.network.getContract(this.contractId);
 
@@ -208,42 +250,5 @@ export default class Fabric {
             this.gateway.close();
             this.connected = false;
         }
-    }
-
-    /**
-     * Create the runtime identity from the supplied files
-     * @returns new Identity
-     */
-    async newIdentity(): Promise<Identity> {
-        let certificate;
-        let mspId;
-        const enc = new TextEncoder();
-        if (this.cfg.gateway!.userIdFile) {
-            const id = JSON.parse(await fs.readFile(this.cfg.gateway!.userIdFile, 'utf-8'));
-
-            certificate = enc.encode(id['credentials']['certificate']);
-            mspId = id['mspId'];
-        } else {
-            certificate = await fs.readFile(this.cfg.gateway!.userCertificateFile!);
-            mspId = this.cfg.gateway!.mspId;
-        }
-
-        return { mspId, credentials: certificate };
-    }
-
-    async newSigner(): Promise<Signer> {
-        let privateKeyPem;
-        if (this.cfg.gateway!.userIdFile) {
-            const id = JSON.parse(await fs.readFile(this.cfg.gateway!.userIdFile, 'utf-8'));
-            privateKeyPem = id['credentials']['privateKey'];
-        } else {
-            const files = await fs.readdir(this.cfg.gateway!.userPrivateKeyFile!);
-            const keyPath = path.resolve(this.cfg.gateway!.userPrivateKeyFile!, files[0]);
-            privateKeyPem = await fs.readFile(keyPath);
-        }
-
-        const privateKey = crypto.createPrivateKey(privateKeyPem);
-
-        return signers.newPrivateKeySigner(privateKey);
     }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@hyperledgendary/runhfsc",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Simple CLI for testing transactions",
   "bin": {
     "runhfsc": "dist/main.js"
@@ -48,6 +48,7 @@
     "cliffy": "^2.4.3",
     "env-var": "^7.1.1",
     "js-yaml": "^4.1.0",
+    "jsonata": "^1.8.6",
     "pino": "^7.9.2",
     "prettyjson": "^1.2.5",
     "source-map-support": "^0.5.21",

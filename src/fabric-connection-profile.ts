@@ -5,6 +5,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+import * as grpc from '@grpc/grpc-js';
 import yaml from 'js-yaml';
 
 const JSON_EXT = /json/gi;
@@ -26,6 +27,7 @@ export interface ConnectionProfile {
 export interface Peer {
     grpcOptions: grpcOptions;
     url: string;
+    tlsCACerts: any;
 }
 
 export interface grpcOptions {
@@ -59,6 +61,21 @@ export class ConnectionHelper {
             return yaml.load(fs.readFileSync(ccpPath, 'utf8')) as ConnectionProfile;
         } else {
             throw new Error(`Extension of ${ccpPath} not recognised`);
+        }
+    }
+
+    static async newGrpcConnection(cp: ConnectionProfile, tls: boolean): Promise<grpc.Client> {
+        const peerEndpointURL = new URL(cp.peers[Object.keys(cp.peers)[0]].url);
+        const peerEndpoint = `${peerEndpointURL.hostname}:${peerEndpointURL.port}`;
+
+        if (tls) {
+            const tlsRootCert = cp.peers[Object.keys(cp.peers)[0]].tlsCACerts.pem;
+            const tlsCredentials = grpc.credentials.createSsl(Buffer.from(tlsRootCert));
+
+            return new grpc.Client(peerEndpoint, tlsCredentials);
+        } else {
+            console.log(peerEndpoint);
+            return new grpc.Client(peerEndpoint, grpc.ChannelCredentials.createInsecure());
         }
     }
 }

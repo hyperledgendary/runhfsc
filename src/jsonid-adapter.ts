@@ -8,6 +8,7 @@ import { Identity, Signer, signers } from '@hyperledger/fabric-gateway';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { errorMonitor } from 'events';
 
 /** Internal interface used to describe all the possible components
  * of the identity
@@ -17,7 +18,8 @@ interface JSONID {
     cert: string;
     ca: string;
     hsm: boolean;
-    private_key: string;
+    private_key?: string;
+    privateKey?: string;
     mspId: string;
 }
 
@@ -115,8 +117,15 @@ export default class JSONIDAdapter {
      */
     public async getSigner(idFile: string): Promise<Signer> {
         const id = await this.readIDFile(idFile);
-
-        const privateKey = crypto.createPrivateKey(id.private_key);
+        let pk;
+        if (id.private_key) {
+            pk = id.private_key;
+        } else if ('privateKey' in id) {
+            pk = id['privateKey'];
+        } else {
+            throw new Error('Unable to parse the identity json file');
+        }
+        const privateKey = crypto.createPrivateKey(pk as string);
         return signers.newPrivateKeySigner(privateKey);
     }
 }

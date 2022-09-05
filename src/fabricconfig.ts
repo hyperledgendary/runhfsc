@@ -8,31 +8,40 @@
  * The FabricConfig interface (and matching JSON structure) allows either format to be specified
  */
 export interface FabricConfig {
-    gateway?: GatewayConfig;
-    indirect?: IndirectFabricConfig;
+    identity: GatewayIdentity | IdFile | Wallet;
+    endpoint: GatewayEndpoint | Profile;
+    tlsEnabled: boolean;
+
+    defaultChannel?: string;
+    defaultContract?: string;
 }
 
 /**
  *
  */
-export interface GatewayConfig {
+export interface GatewayEndpoint {
     tlsCertFile: string;
     peerEndpoint: string;
     sslHostNameOverride?: string;
-
-    userPrivateKeyFile?: string;
-    userCertificateFile?: string;
-    mspId?: string;
-
-    userIdFile?: string; // json file that contains the above 3 pieces of information
 }
 
-/**
- * The v2.x wallet, and connection profile approach
- */
-export interface IndirectFabricConfig {
-    wallet?: string;
-    walletuser?: string;
-    connectionProfileFile?: string;
-    peerName?: string;
+export interface Profile {
+    connectionProfileFile: string;
+    peerName: string;
+}
+
+export interface IdFile {
+    idFile: string;
+    mspId?: string;
+}
+
+export interface Wallet {
+    wallet: string;
+    walletuser: string;
+}
+
+export interface GatewayIdentity {
+    userPrivateKeyFile: string;
+    userCertificateFile: string;
+    mspId: string;
 }

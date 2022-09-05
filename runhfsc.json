@@ -1,0 +1,30 @@
+{
+    "default": {
+        "type": "gateway",
+        "tlsEnabled": true,
+        "identity": {
+            "idFile":"/home/matthew/github.com/hyperledgendary/full-stack-asset-transfer-guide/_cfg/asset-transfer_appid.json",
+            "mspId":"Org1MSP"
+        },
+        "endpoint": {
+            "connectionProfileFile":"/home/matthew/github.com/hyperledgendary/full-stack-asset-transfer-guide/_cfg/Org1_gateway.json"
+        },
+        "defaultChannel":"mychannel",
+        "defaultContract":"asset-transfer"
+    },
+    "josh": {
+        "type": "gateway",
+        "tlsEnabled": true,
+        "identity": {
+            "userPrivateKeyFile":"/home/matthew/.fabric-ca-client/msp/keystore",
+            "userCertificateFile":"/home/matthew/.fabric-ca-client/msp/signcerts/cert.pem",
+            "mspId":"Org1MSP"
+        },
+        "endpoint": {
+            "tlsCertFile":"/home/matthew/github.com/hyperledgendary/runhfsc/_josh/tlscert.pem",
+            "peerEndpoint":"test-network-org1-peer1-peer.158-175-157-125.nip.io:443"
+        },
+        "defaultChannel":"mychannel",
+        "defaultContract":"asset-transfer"
+    }
+}
