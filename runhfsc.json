@@ -12,19 +12,20 @@
         "defaultChannel":"mychannel",
         "defaultContract":"asset-transfer"
     },
-    "josh": {
+    "testnetwork":{
         "type": "gateway",
         "tlsEnabled": true,
         "identity": {
-            "userPrivateKeyFile":"/home/matthew/.fabric-ca-client/msp/keystore",
-            "userCertificateFile":"/home/matthew/.fabric-ca-client/msp/signcerts/cert.pem",
+            "userCertificateFile":"/home/matthew/github.com/hyperledger/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com/users/User1@org1.example.com/msp/signcerts/cert.pem",
+            "userPrivateKeyFile":"/home/matthew/github.com/hyperledger/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com/users/User1@org1.example.com/msp/keystore",
             "mspId":"Org1MSP"
         },
         "endpoint": {
-            "tlsCertFile":"/home/matthew/github.com/hyperledgendary/runhfsc/_josh/tlscert.pem",
-            "peerEndpoint":"test-network-org1-peer1-peer.158-175-157-125.nip.io:443"
+            "peerEndpoint":"localhost:7051",
+            "peerHostAlias":"peer0.org1.example.com",
+            "tlsCertFile":"/home/matthew/github.com/hyperledger/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com/tlsca/tlsca.org1.example.com-cert.pem"
         },
         "defaultChannel":"mychannel",
-        "defaultContract":"asset-transfer"
+        "defaultContract":"anon"
     }
 }
